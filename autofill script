@@ -1,0 +1,102 @@
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from time import sleep
+import random
+
+# Replace with the path to your WebDriver (e.g., ChromeDriver)
+driver_path = '/usr/local/bin/chromedriver'
+service = Service(driver_path)
+
+# Optional: Run Chrome in headless mode
+options = webdriver.ChromeOptions()
+# options.add_argument('--headless')
+
+driver = webdriver.Chrome(service=service, options=options)
+
+# Replace with your Google Form URL
+form_url = 'your form link here'
+
+# Number of responses you want to submit
+num_responses = 10 # Adjust as needed
+
+def fill_form():
+    # Wait for the form to load
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, 'form')))
+
+    # Locate all question elements
+    questions = driver.find_elements(By.XPATH, "//div[contains(@class, 'Qr7Oae')]")
+
+    print(f"Found {len(questions)} questions on the form.")
+
+    if len(questions) < 13:
+        print(f"Expected at least 13 questions, but found {len(questions)}.")
+        # Decide whether to proceed or exit
+        # return False  # Uncomment to stop execution
+
+    for idx, question in enumerate(questions[:13], start=1):
+        try:
+            # Try to find radio options within the question
+            options = question.find_elements(By.XPATH, ".//div[@role='radio']")
+            if options:
+                # Select a random radio option
+                random_option = random.choice(options)
+                driver.execute_script("arguments[0].scrollIntoView(true);", random_option)
+                random_option.click()
+                sleep(0.2)
+            else:
+                # Check for checkboxes
+                checkboxes = question.find_elements(By.XPATH, ".//div[@role='checkbox']")
+                if checkboxes:
+                    # Select random checkboxes (you can adjust how many to select)
+                    random_checkbox = random.choice(checkboxes)
+                    driver.execute_script("arguments[0].scrollIntoView(true);", random_checkbox)
+                    random_checkbox.click()
+                    sleep(0.2)
+                else:
+                    # Check for text input fields
+                    text_inputs = question.find_elements(By.XPATH, ".//input[@type='text']")
+                    if text_inputs:
+                        text_input = text_inputs[0]
+                        driver.execute_script("arguments[0].scrollIntoView(true);", text_input)
+                        text_input.send_keys("Sample answer")
+                        sleep(0.2)
+                    else:
+                        print(f"Question {idx} type not recognized or no options found. Skipping.")
+        except Exception as e:
+            print(f"Error processing question {idx}: {e}")
+            continue
+    return True
+
+for response_number in range(1, num_responses + 1):
+    print(f"\nSubmitting response {response_number}/{num_responses}")
+    driver.get(form_url)
+
+    if not fill_form():
+        print("Form filling failed. Exiting.")
+        break
+
+    # Submit the form
+    try:
+        submit_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//span[text()='Submit']"))
+        )
+        submit_button.click()
+
+        # Wait for the confirmation page
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.XPATH, "//a[contains(text(),'Submit another response')]"))
+        )
+
+        # Click the link to submit another response
+        another_response_link = driver.find_element(By.XPATH, "//a[contains(text(),'Submit another response')]")
+        another_response_link.click()
+        sleep(1)
+    except Exception as e:
+        print(f"Error submitting the form: {e}")
+        break  # Exit the loop if unable to submit
+
+# Close the driver after submitting all responses
+driver.quit()
